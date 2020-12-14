@@ -158,6 +158,7 @@ class GdalTripletDatasetGenerator:
                 "height": window.height,
                 "width": window.width,
                 "transform": transform(window, dataset.transform),
+                "compress": "lzw",
             }
         )
         return kwargs
