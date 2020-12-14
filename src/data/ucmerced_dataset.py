@@ -3,10 +3,30 @@ import torch
 from skimage import io
 from torch.utils.data import Dataset
 import os
+from torch.utils.tensorboard import SummaryWriter
+from PIL import Image
+from torchvision import transforms
+
 
 
 class UcMercedDataset(Dataset):
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, image_size: int, train: bool = True):
+        
+        if train:
+            self.transforms = transforms.Compose([
+                transforms.Resize((image_size, image_size)),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.ToTensor(),
+                # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+        else:
+            self.transforms = transforms.Compose([
+                transforms.Resize((image_size, image_size)),
+                transforms.ToTensor(),
+                # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+
         self.root_dir = root_dir
         self.class_names = sorted([path for path in os.listdir(self.root_dir) if os.path.isdir(os.path.join(self.root_dir, path))])
         self.label_name_mapping = dict(enumerate(self.class_names))
@@ -19,10 +39,10 @@ class UcMercedDataset(Dataset):
             class_image_paths = []
             for file_name in os.listdir(class_path):
                 path = os.path.join(self.root_dir, class_name, file_name)
-                if os.path.isfile(path):
-                    img = io.imread(path)
-                    if img.shape[:2] == (256, 256):
-                        class_image_paths.append(path)
+                # if os.path.isfile(path):
+                #     img = Image.open(path)
+                #     if img.shape[:2] == (256, 256):
+                class_image_paths.append(path)
             self.positive_mapping[self.name_label_mapping[class_name]] = np.arange(len(image_paths), len(image_paths) + len(class_image_paths))
             image_paths.extend(class_image_paths)
             y.extend([self.name_label_mapping[class_name]] * len(class_image_paths))
@@ -54,7 +74,10 @@ class UcMercedDataset(Dataset):
 
         def read_image(idx):
             img_name = self.image_paths[idx]
-            return io.imread(img_name) / 255.0
+            img = Image.open(img_name)
+            tensor = self.transforms(img)
+            return tensor
+            # return io.imread(img_name) / 255.0
 
         y = self.y[idx]
         anchor = read_image(idx)
@@ -71,3 +94,6 @@ class UcMercedDataset(Dataset):
 
     def get_label_mapping(self, id):
         return self.label_name_mapping[id]
+
+    def get_index_mapping(self, name):
+        return self.name_label_mapping[name]
