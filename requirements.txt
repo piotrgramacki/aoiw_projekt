@@ -6,3 +6,5 @@ jupyter==1.0.0
 scikit-learn==0.23.2
 opencv-python==4.4.0.46
 matplotlib==3.3.3
+imbalanced-learn==0.7.0
+imageio==2.9.0
