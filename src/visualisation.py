@@ -15,7 +15,18 @@ def random_walk(
         starting_index: int = 42,
         search_range: int = 10,
         filename_prefix: str = ""
-):
+) -> None:
+    """
+
+    :param images: original images used for gif creation
+    :param images_encoded: images embeddings (should match images)
+    :param trained_n_neighbours: NearestNeighbours model built on given
+    embeddings
+    :param steps: how many steps in random walk
+    :param starting_index: on which image to start
+    :param search_range: how many closest images to choose next step from
+    :param filename_prefix: optional prefix for generated gif file
+    """
     current_index = starting_index
 
     result = []
