@@ -7,3 +7,6 @@ __pycache__
 /notebooks/runs
 /runs
 wandb
+/.python-version
+.ipynb_checkpoints
+results
