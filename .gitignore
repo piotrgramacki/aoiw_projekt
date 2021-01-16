@@ -4,3 +4,6 @@ __pycache__
 /.env
 .vscode
 /data
+/.python-version
+.ipynb_checkpoints
+results
