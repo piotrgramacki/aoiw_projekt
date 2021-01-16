@@ -49,24 +49,13 @@ class TripletRetriever(pl.LightningModule):
         losses, a, a_y = zip(*outputs)
         val_anmrr = evaluate_anmrr_precalculated(a, a_y, euclidean_distances)
         self.log("val_anmrr", val_anmrr, on_epoch=True, logger=True)
-        # self.train(False)
-        # with torch.no_grad():
-        #     train = self.train_dataloader()
-        #     train_anmrr = evaluate_anmrr(self, train, euclidean_distances)
-        #     self.log("train_anmrr", train_anmrr, on_epoch=True, logger=True)
-        # self.train(True)
+        self.train(False)
+        with torch.no_grad():
+            train = self.train_dataloader()
+            train_anmrr = evaluate_anmrr(self, train, euclidean_distances)
+            self.log("train_anmrr", train_anmrr, on_epoch=True, logger=True)
+        self.train(True)
         return super().validation_epoch_end(outputs)
-
-    # def on_epoch_end(self) -> None:
-    #     self.train(False)
-    #     with torch.no_grad():
-    #         train = self.train_dataloader()
-    #         val = self.val_dataloader()
-    #         train_anmrr = evaluate_anmrr(self, train, euclidean_distances)
-    #         val_anmrr = evaluate_anmrr(self, val, euclidean_distances)
-    #         self.log("train_anmrr", train_anmrr, on_epoch=True, logger=True)
-    #         self.log("val_anmrr", val_anmrr, on_epoch=True, logger=True)
-    #     self.train(True)
 
     def configure_optimizers(self):
         optim = torch.optim.Adam(self.model.parameters(), weight_decay=1e-5)
