@@ -8,6 +8,15 @@ from sklearn.metrics.pairwise import euclidean_distances
 from typing import Callable, Tuple, List, Union
 
 
+def evaluate_anmrr_precalculated(a, a_y,
+    measure: Callable[[np.ndarray], np.ndarray],
+    class_mean: bool = False,):
+    x_features = np.concatenate([x.cpu().numpy() for x in a], axis=0)
+    y = np.concatenate([y.cpu().numpy() for y in a_y], axis=0)[:, None]
+    result = anmrr(x_features, y, measure, class_mean=class_mean)
+    return result
+
+
 def evaluate_anmrr(
     model: Module,
     data: DataLoader,

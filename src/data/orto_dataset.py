@@ -81,5 +81,5 @@ class OrtoDataset(Dataset):
         positive = read_image(positive_path)
         negative = read_image(negative_path)
 
-        sample = {'a': anchor, 'p': positive, 'n': negative, 'path': anchor_path }
+        sample = {'a': anchor, 'p': positive, 'n': negative, 'path': anchor_path, 'positive_path': positive_path, 'negative_path': negative_path }
         return sample
