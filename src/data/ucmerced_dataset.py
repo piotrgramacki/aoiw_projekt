@@ -10,25 +10,34 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 class TripletDataModule(LightningDataModule):
-    def __init__(self, data_dir: str, image_size: int, train_percentage: float, batch_size: int, random_seed = 42):
+    def __init__(self, data_dir: str, image_size: int, train_percentage: float, batch_size: int, augment=True, normalize=True, permute=False, random_seed = 42):
         super().__init__()
         self.data_dir = data_dir
         self.train_percentage = train_percentage
         self.random_seed = random_seed
         self.batch_size = batch_size
         self.image_size = image_size
-        self.augmentations = transforms.Compose([
-                transforms.Resize((self.image_size, self.image_size)),
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            ])
-        self.transforms = transforms.Compose([
-                transforms.Resize((self.image_size, self.image_size)),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            ])
+
+        train_transforms = [transforms.Resize((self.image_size, self.image_size))]
+        test_transforms = [transforms.Resize((self.image_size, self.image_size))]
+
+        if augment:
+            train_transforms.append(transforms.RandomHorizontalFlip())
+            train_transforms.append(transforms.RandomVerticalFlip())
+        
+        train_transforms.append(transforms.ToTensor())
+        test_transforms.append(transforms.ToTensor())
+
+        if normalize:
+            train_transforms.append(transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+            test_transforms.append(transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+        
+        if permute:
+            train_transforms.append(transforms.Lambda(lambda t: t.permute(1,2,0)))
+            test_transforms.append(transforms.Lambda(lambda t: t.permute(1,2,0)))
+
+        self.augmentations = transforms.Compose(train_transforms)
+        self.transforms = transforms.Compose(test_transforms)
 
         self.class_names = sorted([path for path in os.listdir(self.data_dir) if os.path.isdir(os.path.join(self.data_dir, path))])
         self.label_name_mapping = dict(enumerate(self.class_names))
