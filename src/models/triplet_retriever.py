@@ -7,7 +7,7 @@ from typing import List, Any
 
 class TripletRetriever(pl.LightningModule):
     def __init__(
-        self, model_name: str, image_size: int, last_layer_size=100
+        self, model_name: str, last_layer_size=100
     ):
         super().__init__()
         self.model = torch.hub.load("pytorch/vision", model_name, pretrained=True)
@@ -15,7 +15,6 @@ class TripletRetriever(pl.LightningModule):
         self.model.fc = torch.nn.Linear(in_features, last_layer_size, bias=True)
         self.set_training_model_layers(False, 8)
         self.criterion = torch.nn.TripletMarginLoss()
-        self.image_size = image_size
         self.train_dataset = None
         self.val_dataset = None
 

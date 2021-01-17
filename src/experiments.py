@@ -4,7 +4,7 @@ from pytorch_lightning.loggers import WandbLogger
 from src.data.ucmerced_dataset import TripletDataModule
 from src.settings import UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY
 import wandb
-from src.models import TripletRetriever
+from src.models.triplet_retriever import TripletRetriever
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         for model in models:
             for output_size in output_sizes:
                 checkpoint_callback = get_checkpoint_callback()
-                triplet_retriever = TripletRetriever(model, 224, output_size)
+                triplet_retriever = TripletRetriever(model, output_size)
                 dm = TripletDataModule(dataset_path, 224, 0.8, 100)
                 wandb_logger = WandbLogger(f'{model}_{output_size}', project=f'triplet_retrieval_{dataset_name}')
                 wandb_logger.watch(triplet_retriever, 'all', log_freq=10)
