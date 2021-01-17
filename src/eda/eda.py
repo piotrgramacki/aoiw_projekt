@@ -55,10 +55,10 @@ def get_color_intensity_counts_per_class(data_dir: str):
     images_in_classes = list_images_in_classes(data_dir)
     dfs = {}
 
-    for c, images in images_in_classes.items():
+    for c, images in tqdm(images_in_classes.items()):
         cols = np.zeros((256, 4))
         values = np.arange(0, 256)
-        for name, path in tqdm(images):
+        for name, path in images:
             im = io.imread(path)
             im = np.reshape(im, (-1, 3))
             for i in range(3):
@@ -72,7 +72,7 @@ def get_color_intensity_counts_per_class(data_dir: str):
     return dfs
 
 def generate_color_histograms(dataframes: Dict[str, pd.DataFrame], output_dir: str):
-    for c, df in dataframes.items():
+    for c, df in tqdm(dataframes.items()):
         fig, ax = plt.subplots(figsize=(5.8, 1.95))
         ax = sns.histplot(df, x='x', weights='value', stat='density', hue='Kolor', discrete=True, kde=True, palette={'R': 'red', 'G': 'green', 'B': 'blue'}, legend=False)
         ax.set(title=f'Histogram kolorów dla klasy {c}')
@@ -80,3 +80,6 @@ def generate_color_histograms(dataframes: Dict[str, pd.DataFrame], output_dir: s
         ax.get_xaxis().set_visible(False)
         file_path = os.path.join(output_dir, f"{c}.png")
         fig.savefig(file_path, dpi=300, bbox_inches='tight', pad_inches=0)
+        plt.clf()
+        plt.cla()
+        plt.close()
