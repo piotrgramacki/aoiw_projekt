@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from skimage import io, img_as_ubyte
+from sklearn import cluster
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.neighbors import NearestNeighbors
@@ -15,6 +16,7 @@ from imblearn.under_sampling import RandomUnderSampler
 
 from src.data.ucmerced_dataset import TripletDataset
 from src.measures import anmrr
+from typing import List
 
 class BoVWRetriever:
     def __init__(self, clusters: int, samples_count: int, random_state=42):
@@ -23,6 +25,21 @@ class BoVWRetriever:
         self.random_state = random_state
         self.sift = cv2.SIFT_create()
         self.k_means = None
+    
+
+    def run_batched_experiments(self, train_data: TripletDataset, test_data: TripletDataset, cluster_sizes: List[int], samples_counts: List[int]):
+        resampled_train_descriptors, resampled_train_labels = self.get_resampled_descriptors(train_data)
+        test_descriptors = self.get_descriptors(test_data, labels=False)
+        y_test = self.get_class_labels(test_data)
+
+        for clusters in cluster_sizes:
+            for samples in samples_counts:
+                print(f"Clusters: {clusters}, samples: {samples}")
+                self.clusters = clusters
+                self.samples_count = samples
+                self.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
+                measure = self.eval_precomputed(test_descriptors, y_test)
+                print(measure)
     
     def fit(self, data: TripletDataset):
         resampled_train_descriptors, resampled_train_labels = self.get_resampled_descriptors(data)
