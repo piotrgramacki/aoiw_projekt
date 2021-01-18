@@ -25,14 +25,10 @@ class BoVWRetriever:
         self.k_means = None
     
     def fit(self, data: TripletDataset):
-        x_train_descriptors, y_train_descriptors = self.get_descriptors(data, labels=True)
-        stacked_train_descriptors = np.vstack(x_train_descriptors)
-        stacked_train_labels = np.hstack(y_train_descriptors)
-        under_sampler = RandomUnderSampler(random_state=self.random_state)
-        resampled_train_descriptors, resampled_train_labels = under_sampler.fit_resample(
-            stacked_train_descriptors, stacked_train_labels
-        )
-
+        resampled_train_descriptors, resampled_train_labels = self.get_resampled_descriptors(data)
+        self.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
+    
+    def fit_precomputed(self, resampled_train_descriptors, resampled_train_labels):
         samples_ratio_for_kmeans = self.samples_count / resampled_train_descriptors.shape[0]
 
         _, descriptors_for_kmeans, _, labels_for_kmeans = train_test_split(
@@ -41,23 +37,41 @@ class BoVWRetriever:
             test_size=samples_ratio_for_kmeans,
             random_state=self.random_state
         )
-
         self.k_means = KMeans(n_clusters=self.clusters, random_state=self.random_state)
-
         self.k_means.fit(descriptors_for_kmeans)
     
+    def get_resampled_descriptors(self, data: TripletDataset):
+        x_train_descriptors, y_train_descriptors = self.get_descriptors(data, labels=True)
+        stacked_train_descriptors = np.vstack(x_train_descriptors)
+        stacked_train_labels = np.hstack(y_train_descriptors)
+        under_sampler = RandomUnderSampler(random_state=self.random_state)
+        resampled_train_descriptors, resampled_train_labels = under_sampler.fit_resample(
+            stacked_train_descriptors, stacked_train_labels
+        )
+        return resampled_train_descriptors, resampled_train_labels
+    
     def eval(self, data: TripletDataset) -> float:
-        y_test = np.empty(shape=(len(data),), dtype=np.int)
+        y_test = self.get_class_labels(data)
+        x_test_encoded = self.encode_as_bovw(data)
+
+        return self.get_anmrr(x_test_encoded, y_test)
+    
+    def eval_precomputed(self, descriptors, labels):
+        x_test_encoded = self.encode_as_bovw_precomputed(descriptors)
+        return self.get_anmrr(x_test_encoded, labels)
+    
+
+    def get_anmrr(self, x_encoded, labels):
+        anmrr_value = anmrr(x_encoded, labels[:, None], euclidean_distances)
+        return anmrr_value
+
+    def get_class_labels(self, data: TripletDataset):
+        labels = np.empty(shape=(len(data),), dtype=np.int)
 
         for idx in trange(len(data)):
             item = data[idx]
-            y_test[idx] = item["a_y"]
-        
-
-        x_test_encoded = self.encode_as_bovw(data)
-
-        anmrr_value = anmrr(x_test_encoded, y_test[:, None], euclidean_distances)
-        return anmrr_value
+            labels[idx] = item["a_y"]
+        return labels
 
     def get_descriptors(self, data: TripletDataset, labels=True):
         desc = []
@@ -85,8 +99,10 @@ class BoVWRetriever:
 
     def encode_as_bovw(self, data: TripletDataset) -> np.ndarray:
         descriptors = self.get_descriptors(data, labels=False)
+        return self.encode_as_bovw_precomputed(descriptors)
 
-        res = np.empty(shape=(len(data), self.k_means.n_clusters))
+    def encode_as_bovw_precomputed(self, descriptors) -> np.ndarray:
+        res = np.empty(shape=(len(descriptors), self.k_means.n_clusters))
 
         for idx, desc in tqdm(
             enumerate(descriptors), total=len(descriptors), desc="Encoding as BOVW"
