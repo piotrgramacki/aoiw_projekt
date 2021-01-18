@@ -5,7 +5,8 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 from src.settings import RANDOM_WALKS_DIRECTORY
-
+from typing import List, Dict, Tuple
+import plotly.express as px
 
 def random_walk(
         images: np.ndarray,
@@ -51,3 +52,15 @@ def random_walk(
         ),
         result
     )
+
+
+def visualize_anmrr_per_class(anmrr_per_class: List[Tuple[int, float]], label_name_mapping: Dict[int, str], dataset_name: str, result_path: str, additional_title_string=None):
+    names_with_values = [(label_name_mapping[label], value) for label, value in anmrr_per_class]
+    names, values = zip(*names_with_values)
+    title = f"ANMRR per class in {dataset_name} dataset"
+    if additional_title_string is not None:
+        title += f" [{additional_title_string}]"
+    fig = px.bar(x=names, y=values, labels={'x': '', 'y': 'ANMRR'}, title=title)
+    fig.update_xaxes(tickangle=-90)
+    fig.update_layout({'font': {'size': 30}})
+    fig.write_image(result_path, width=1800, height=960)

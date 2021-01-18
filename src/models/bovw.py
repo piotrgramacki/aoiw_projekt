@@ -16,7 +16,7 @@ from imblearn.under_sampling import RandomUnderSampler
 
 from src.data.ucmerced_dataset import TripletDataset
 from src.measures import anmrr
-from typing import List
+from typing import List, Tuple
 
 class BoVWRetriever:
     def __init__(self, clusters: int, samples_count: int, random_state=42):
@@ -25,21 +25,6 @@ class BoVWRetriever:
         self.random_state = random_state
         self.sift = cv2.SIFT_create()
         self.k_means = None
-    
-
-    def run_batched_experiments(self, train_data: TripletDataset, test_data: TripletDataset, cluster_sizes: List[int], samples_counts: List[int]):
-        resampled_train_descriptors, resampled_train_labels = self.get_resampled_descriptors(train_data)
-        test_descriptors = self.get_descriptors(test_data, labels=False)
-        y_test = self.get_class_labels(test_data)
-
-        for clusters in cluster_sizes:
-            for samples in samples_counts:
-                print(f"Clusters: {clusters}, samples: {samples}")
-                self.clusters = clusters
-                self.samples_count = samples
-                self.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
-                measure = self.eval_precomputed(test_descriptors, y_test)
-                print(measure)
     
     def fit(self, data: TripletDataset):
         resampled_train_descriptors, resampled_train_labels = self.get_resampled_descriptors(data)
@@ -67,20 +52,19 @@ class BoVWRetriever:
         )
         return resampled_train_descriptors, resampled_train_labels
     
-    def eval(self, data: TripletDataset) -> float:
+    def eval(self, data: TripletDataset) -> Tuple[float, List[Tuple[int, float]]]:
         y_test = self.get_class_labels(data)
         x_test_encoded = self.encode_as_bovw(data)
 
         return self.get_anmrr(x_test_encoded, y_test)
     
-    def eval_precomputed(self, descriptors, labels):
+    def eval_precomputed(self, descriptors, labels) -> Tuple[float, List[Tuple[int, float]]]:
         x_test_encoded = self.encode_as_bovw_precomputed(descriptors)
         return self.get_anmrr(x_test_encoded, labels)
     
 
-    def get_anmrr(self, x_encoded, labels):
-        anmrr_value = anmrr(x_encoded, labels[:, None], euclidean_distances)
-        return anmrr_value
+    def get_anmrr(self, x_encoded, labels) -> Tuple[float, List[Tuple[int, float]]]:
+        return anmrr(x_encoded, labels[:, None], euclidean_distances, class_mean=True)
 
     def get_class_labels(self, data: TripletDataset):
         labels = np.empty(shape=(len(data),), dtype=np.int)

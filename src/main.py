@@ -1,7 +1,12 @@
+from typing import List
 from sklearn import datasets
+from data.ucmerced_dataset import TripletDataModule, TripletDataset
+from experiments import run_all_bovw
+from models.bovw import BoVWRetriever
 from src.eda.eda import get_color_intensity_counts_per_class, generate_color_histograms
 from src.settings import RESULTS_DIRECTORY, EDA_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY
 import os
+from visualisation import visualize_anmrr_per_class
 
 def create_path_if_not_exists(path: str):
     if not os.path.exists(path):
@@ -21,4 +26,6 @@ def create_histograms():
         print("Generating histograms")
         generate_color_histograms(color_intensities, result_path)
 
-create_histograms()
+# create_histograms()
+
+run_all_bovw()
