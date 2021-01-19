@@ -56,29 +56,30 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
     class_names = test_data.class_names
     values_per_class_without_labels = [list(list(zip(*single_experiment))[1]) for single_experiment in values_per_class]
     full_df = pd.concat([df, pd.DataFrame(np.array(values_per_class_without_labels), columns=class_names)], axis=1)
-    results_long_form = full_df.melt(id_vars=['clusters', 'samples', 'anmrr'], var_name='class', value_name='anmrr_per_class')
-    results_long_form['experiment_name'] = results_long_form.apply(lambda row: str(row['clusters']) + "_" + str(row['samples']), axis=1)
-    results_long_form.to_pickle(os.path.join(output_path, f"results_{dataset_name}.pkl.gz"))
+    full_df.to_pickle(os.path.join(output_path, f"results_{dataset_name}.pkl.gz"))
     
     return values, values_per_class, cluster_numbers, sample_numbers
 
 
 def run_all_bovw():
+    datasets = [("UC Merced", UC_MERCED_DATA_DIRECTORY, "uc_merced"), ("PatternNet", PATTERN_NET_DATA_DIRECTORY, "pattern_net")]
     image_size = 256
-    dm = TripletDataModule(UC_MERCED_DATA_DIRECTORY, image_size, 0.8, 100, augment=False, normalize=False, permute=True)
-    dm.setup(None)
-    train_dataset = dm.train_dataset
-    test_dataset = dm.val_dataset
 
-    # output_sizes = [25, 50, 100, 150]
-    output_sizes = [25, 50]
+    output_sizes = [25, 50, 100, 150]
     samples = [10000]
     bovw_path = os.path.join(RESULTS_DIRECTORY, "bovw")
     create_path_if_not_exists(bovw_path)
-    dataset_path = os.path.join(bovw_path, "uc_merced")
-    create_path_if_not_exists(dataset_path)
 
-    run_bovw_experiments(train_dataset, test_dataset, output_sizes, samples, "UC Merced", dataset_path)
+    for dataset_name, dataset_path, output_name in datasets:
+        dm = TripletDataModule(dataset_path, image_size, 0.8, 100, augment=False, normalize=False, permute=True)
+        dm.setup(None)
+        train_dataset = dm.train_dataset
+        test_dataset = dm.val_dataset
+
+        output_path = os.path.join(bovw_path, output_name)
+        create_path_if_not_exists(output_path)
+
+        run_bovw_experiments(train_dataset, test_dataset, output_sizes, samples, dataset_name, output_path)
 
 def get_checkpoint_callback():
     checkpoint_callback = ModelCheckpoint(
