@@ -7,6 +7,9 @@ from sklearn.neighbors import NearestNeighbors
 from src.settings import RANDOM_WALKS_DIRECTORY
 from typing import List, Dict, Tuple
 import plotly.express as px
+from skimage import io
+import matplotlib.pyplot as plt
+from sklearn.metrics.pairwise import euclidean_distances
 
 def random_walk(
         images: np.ndarray,
@@ -64,3 +67,42 @@ def visualize_anmrr_per_class(anmrr_per_class: List[Tuple[int, float]], label_na
     fig.update_xaxes(tickangle=-90)
     fig.update_layout({'font': {'size': 30}})
     fig.write_image(result_path, width=1800, height=960)
+    return fig
+
+
+def visualize_best_and_worst_queries(paths, embeddings, nmrr, n_queries, output_path, n_images_per_query):
+    distances = euclidean_distances(embeddings)
+    nmrr = nmrr.squeeze()
+
+    best_queries_indices = np.argsort(nmrr)
+    n_best_queries_indices = best_queries_indices[:n_queries]
+    n_worst_queries_indices = best_queries_indices[-n_queries:][::-1]
+
+
+    rankings = np.argsort(distances, axis=1)
+    selected_images = paths[rankings]
+
+    cols = rows = int(np.ceil(np.sqrt(n_images_per_query)))
+
+    def visualize_queries(query_indices, query_type: str):
+        for query_number, query_index in enumerate(query_indices):
+            query_image_path = paths[query_index]
+            query_image_name = os.path.split(str(query_image_path))[1]
+            query = selected_images[query_index, :].squeeze()
+
+            fig=plt.figure(figsize=(8, 8))
+            for i in range (cols * rows):
+                path = query[i]
+                image = io.imread(path)
+                fig.add_subplot(rows, cols, i+1)
+                plt.title(os.path.split(path)[1])
+                plt.axis("off")
+                
+                plt.imshow(image)
+            fig.suptitle(f"Response to query: {query_image_name}, NMRR:{nmrr[query_index]:.2f}")
+            fig.savefig(os.path.join(output_path, f"{query_type}_{query_number}.png"), dpi=300, bbox_inches='tight', pad_inches=0)
+            plt.clf()
+            plt.cla()
+            plt.close()
+    visualize_queries(n_worst_queries_indices, "worst")
+    visualize_queries(n_best_queries_indices, "best")

@@ -1,18 +1,25 @@
 from gc import callbacks
 import os
 from typing import List
+from venv import create
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
-from models.bovw import BoVWRetriever
+from src.models.bovw import BoVWRetriever
 from src.data.ucmerced_dataset import TripletDataModule, TripletDataset
-from src.settings import UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY
+from src.settings import RESULTS_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY
 import wandb
 from src.models.triplet_retriever import TripletRetriever
 from pytorch_lightning.callbacks import ModelCheckpoint
+import numpy as np
+from src.utils import get_paths_and_classes
 
-from visualisation import visualize_anmrr_per_class
+from src.visualisation import visualize_anmrr_per_class, visualize_best_and_worst_queries
 
 import pandas as pd
+
+def create_path_if_not_exists(path: str):
+    if not os.path.exists(path):
+        os.mkdir(path)
 
 def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, cluster_sizes: List[int], samples_counts: List[int], dataset_name: str, output_path: str):
     model = BoVWRetriever(100, 10000)
@@ -27,20 +34,32 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
 
     for clusters in cluster_sizes:
         for samples in samples_counts:
+            experiment_path = os.path.join(output_path, f"{clusters}_{samples}")
+            create_path_if_not_exists(experiment_path)
             cluster_numbers.append(clusters)
             sample_numbers.append(samples)
             print(f"Clusters: {clusters}, samples: {samples}")
             model.clusters = clusters
             model.samples_count = samples
             model.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
-            value, value_per_class = model.eval_precomputed(test_descriptors, y_test)
+            value, value_per_class, nmrr, embeddings = model.eval_precomputed(test_descriptors, y_test)
+            paths, _ = get_paths_and_classes(test_data)
+            visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
+            
             values.append(value)
-            values_per_class.append(values_per_class)
-            result_path = os.path.join(output_path, f"bovw_anmrr_{dataset_name}_{clusters}_{samples}.png")
-            visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path)
+            values_per_class.append(value_per_class)
+            result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
+            visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}")
     
-    # df = pd.DataFrame({"clusters": cluster_numbers, "samples": sample_numbers, "anmrr": values, "anmrr_per_class": values_per_class})
-    # df.to_pickle(os.path.join(output_path, f"bovw_{dataset_name}.pkl.gz"))
+    df = pd.DataFrame.from_dict({"clusters": cluster_numbers, "samples": sample_numbers, "anmrr": values})
+    class_names = test_data.class_names
+    values_per_class_without_labels = [list(list(zip(*single_experiment))[1]) for single_experiment in values_per_class]
+    full_df = pd.concat([df, pd.DataFrame(np.array(values_per_class_without_labels), columns=class_names)], axis=1)
+    results_long_form = full_df.melt(id_vars=['clusters', 'samples', 'anmrr'], var_name='class', value_name='anmrr_per_class')
+    results_long_form['experiment_name'] = results_long_form.apply(lambda row: str(row['clusters']) + "_" + str(row['samples']), axis=1)
+    results_long_form.to_pickle(os.path.join(output_path, f"results_{dataset_name}.pkl.gz"))
+    
+    return values, values_per_class, cluster_numbers, sample_numbers
 
 
 def run_all_bovw():
@@ -50,9 +69,15 @@ def run_all_bovw():
     train_dataset = dm.train_dataset
     test_dataset = dm.val_dataset
 
-    output_sizes = [25, 50, 100, 150]
+    # output_sizes = [25, 50, 100, 150]
+    output_sizes = [25, 50]
     samples = [10000]
-    run_bovw_experiments(train_dataset, test_dataset, output_sizes, samples, "UC Merced", "results")
+    bovw_path = os.path.join(RESULTS_DIRECTORY, "bovw")
+    create_path_if_not_exists(bovw_path)
+    dataset_path = os.path.join(bovw_path, "uc_merced")
+    create_path_if_not_exists(dataset_path)
+
+    run_bovw_experiments(train_dataset, test_dataset, output_sizes, samples, "UC Merced", dataset_path)
 
 def get_checkpoint_callback():
     checkpoint_callback = ModelCheckpoint(

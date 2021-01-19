@@ -52,19 +52,19 @@ class BoVWRetriever:
         )
         return resampled_train_descriptors, resampled_train_labels
     
-    def eval(self, data: TripletDataset) -> Tuple[float, List[Tuple[int, float]]]:
+    def eval(self, data: TripletDataset) -> Tuple[float, List[Tuple[int, float]], np.ndarray]:
         y_test = self.get_class_labels(data)
         x_test_encoded = self.encode_as_bovw(data)
 
         return self.get_anmrr(x_test_encoded, y_test)
     
-    def eval_precomputed(self, descriptors, labels) -> Tuple[float, List[Tuple[int, float]]]:
+    def eval_precomputed(self, descriptors, labels) -> Tuple[float, List[Tuple[int, float]], np.ndarray, np.ndarray]:
         x_test_encoded = self.encode_as_bovw_precomputed(descriptors)
-        return self.get_anmrr(x_test_encoded, labels)
+        return (*self.get_anmrr(x_test_encoded, labels), x_test_encoded)
     
 
-    def get_anmrr(self, x_encoded, labels) -> Tuple[float, List[Tuple[int, float]]]:
-        return anmrr(x_encoded, labels[:, None], euclidean_distances, class_mean=True)
+    def get_anmrr(self, x_encoded, labels) -> Tuple[float, List[Tuple[int, float]], np.ndarray]:
+        return anmrr(x_encoded, labels[:, None], euclidean_distances, class_mean=True, all_queries=True)
 
     def get_class_labels(self, data: TripletDataset):
         labels = np.empty(shape=(len(data),), dtype=np.int)
