@@ -23,7 +23,7 @@ def create_path_if_not_exists(path: str):
 
 def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, cluster_sizes: List[int], samples_counts: List[int], dataset_name: str, output_path: str):
     model = BoVWRetriever(100, 10000)
-    resampled_train_descriptors, resampled_train_labels = model.get_resampled_descriptors(train_data)
+    resampled_train_descriptors, resampled_train_labels, train_descriptors, train_labels = model.get_resampled_descriptors(train_data, return_not_resampled=True)
     test_descriptors = model.get_descriptors(test_data, labels=False)
     y_test = model.get_class_labels(test_data)
 
@@ -31,28 +31,35 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
     values_per_class = []
     cluster_numbers = []
     sample_numbers = []
+    undersampling = []
 
     for clusters in cluster_sizes:
         for samples in samples_counts:
-            experiment_path = os.path.join(output_path, f"{clusters}_{samples}")
-            create_path_if_not_exists(experiment_path)
-            cluster_numbers.append(clusters)
-            sample_numbers.append(samples)
-            print(f"Clusters: {clusters}, samples: {samples}")
-            model.clusters = clusters
-            model.samples_count = samples
-            model.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
-            value, value_per_class, nmrr, embeddings = model.eval_precomputed(test_descriptors, y_test)
-            paths, _ = get_paths_and_classes(test_data)
-            visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
-            
-            values.append(value)
-            values_per_class.append(value_per_class)
-            result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
-            visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}")
-            visualize_embeddings(embeddings, paths, experiment_path)
+            for undersampling in [True, False]:
+                experiment_path = os.path.join(output_path, f"{clusters}_{samples}_{undersampling}")
+                create_path_if_not_exists(experiment_path)
+                cluster_numbers.append(clusters)
+                sample_numbers.append(samples)
+                print(f"Clusters: {clusters}, samples: {samples}, undersampling: {undersampling}")
+                model.clusters = clusters
+                model.samples_count = samples
+                if undersampling:
+                    model.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
+                else:
+                    model.fit_precomputed(train_descriptors, train_labels)
+
+                value, value_per_class, nmrr, embeddings = model.eval_precomputed(test_descriptors, y_test)
+                paths, _ = get_paths_and_classes(test_data)
+                visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
+                
+                values.append(value)
+                print(value)
+                values_per_class.append(value_per_class)
+                result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
+                visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}")
+                visualize_embeddings(embeddings, paths, experiment_path)
     
-    df = pd.DataFrame.from_dict({"clusters": cluster_numbers, "samples": sample_numbers, "anmrr": values})
+    df = pd.DataFrame.from_dict({"clusters": cluster_numbers, "samples": sample_numbers, "anmrr": values, "undersampling": undersampling})
     class_names = test_data.class_names
     values_per_class_without_labels = [list(list(zip(*single_experiment))[1]) for single_experiment in values_per_class]
     full_df = pd.concat([df, pd.DataFrame(np.array(values_per_class_without_labels), columns=class_names)], axis=1)
@@ -66,7 +73,7 @@ def run_all_bovw():
     image_size = 256
 
     output_sizes = [25, 50, 100, 150]
-    samples = [10000]
+    samples = [5000, 10000, 20000, 50000]
     bovw_path = os.path.join(RESULTS_DIRECTORY, "bovw")
     create_path_if_not_exists(bovw_path)
 

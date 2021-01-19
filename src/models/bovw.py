@@ -30,25 +30,33 @@ class BoVWRetriever:
         resampled_train_descriptors, resampled_train_labels = self.get_resampled_descriptors(data)
         self.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
     
-    def fit_precomputed(self, resampled_train_descriptors, resampled_train_labels):
-        samples_ratio_for_kmeans = self.samples_count / resampled_train_descriptors.shape[0]
+    def fit_precomputed(self, train_descriptors, train_labels):
+        samples_ratio_for_kmeans = self.samples_count / train_descriptors.shape[0]
+        print(samples_ratio_for_kmeans)
 
-        _, descriptors_for_kmeans, _, labels_for_kmeans = train_test_split(
-            resampled_train_descriptors,
-            resampled_train_labels,
+        _, descriptors_for_kmeans = train_test_split(
+            train_descriptors,
             test_size=samples_ratio_for_kmeans,
-            random_state=self.random_state
+            random_state=self.random_state,
+            stratify=train_labels
         )
         self.k_means = KMeans(n_clusters=self.clusters, random_state=self.random_state)
         self.k_means.fit(descriptors_for_kmeans)
     
-    def get_resampled_descriptors(self, data: TripletDataset):
+    def get_resampled_descriptors(self, data: TripletDataset, return_not_resampled=False):
         x_train_descriptors, y_train_descriptors = self.get_descriptors(data, labels=True)
         stacked_train_descriptors = np.vstack(x_train_descriptors)
         stacked_train_labels = np.hstack(y_train_descriptors)
+
+        result = self.resample_train_descriptors(stacked_train_descriptors, stacked_train_labels)
+        if return_not_resampled:
+            result = (*result, stacked_train_descriptors, stacked_train_labels)
+        return result
+    
+    def resample_train_descriptors(self, train_descriptors, train_labels):
         under_sampler = RandomUnderSampler(random_state=self.random_state)
         resampled_train_descriptors, resampled_train_labels = under_sampler.fit_resample(
-            stacked_train_descriptors, stacked_train_labels
+            train_descriptors, train_labels
         )
         return resampled_train_descriptors, resampled_train_labels
     
