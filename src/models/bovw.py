@@ -32,14 +32,18 @@ class BoVWRetriever:
     
     def fit_precomputed(self, train_descriptors, train_labels):
         samples_ratio_for_kmeans = self.samples_count / train_descriptors.shape[0]
+        samples_ratio_for_kmeans = min(samples_ratio_for_kmeans, 1.0)
         print(samples_ratio_for_kmeans)
 
-        _, descriptors_for_kmeans = train_test_split(
-            train_descriptors,
-            test_size=samples_ratio_for_kmeans,
-            random_state=self.random_state,
-            stratify=train_labels
-        )
+        if samples_ratio_for_kmeans >= 1.0:
+            descriptors_for_kmeans = train_descriptors
+        else:
+            _, descriptors_for_kmeans = train_test_split(
+                train_descriptors,
+                test_size=samples_ratio_for_kmeans,
+                random_state=self.random_state,
+                stratify=train_labels
+            )
         self.k_means = KMeans(n_clusters=self.clusters, random_state=self.random_state)
         self.k_means.fit(descriptors_for_kmeans)
     

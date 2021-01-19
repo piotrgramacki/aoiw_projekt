@@ -4,6 +4,8 @@ from typing import List
 from venv import create
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
+from sklearn.metrics.pairwise import euclidean_distances
+from measures import anmrr
 from src.models.bovw import BoVWRetriever
 from src.data.ucmerced_dataset import TripletDataModule, TripletDataset
 from src.settings import RESULTS_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY
@@ -11,9 +13,10 @@ import wandb
 from src.models.triplet_retriever import TripletRetriever
 from pytorch_lightning.callbacks import ModelCheckpoint
 import numpy as np
-from src.utils import get_paths_and_classes
+from src.utils import get_paths_and_classes, calculate_embeddings_torch
 
 from src.visualisation import visualize_anmrr_per_class, visualize_best_and_worst_queries, visualize_embeddings
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import pandas as pd
 
@@ -33,31 +36,35 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
     sample_numbers = []
     undersampling = []
 
+    def run_experiment(clusters, samples, undersample):
+        experiment_path = os.path.join(output_path, f"{clusters}_{samples}_{undersample}")  
+        create_path_if_not_exists(experiment_path)
+        cluster_numbers.append(clusters)
+        sample_numbers.append(samples)
+        undersampling.append(undersample)
+        print(f"Clusters: {clusters}, samples: {samples}, undersampling: {undersample}")
+        model.clusters = clusters
+        model.samples_count = samples
+        if undersample:
+            model.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
+        else:
+            model.fit_precomputed(train_descriptors, train_labels)
+
+        value, value_per_class, nmrr, embeddings = model.eval_precomputed(test_descriptors, y_test)
+        paths, _ = get_paths_and_classes(test_data)
+        visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
+        
+        values.append(value)
+        print(value)
+        values_per_class.append(value_per_class)
+        result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
+        visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}, u={undersample}")
+        visualize_embeddings(embeddings, paths, experiment_path)
+
     for clusters in cluster_sizes:
         for samples in samples_counts:
-            for undersampling in [True, False]:
-                experiment_path = os.path.join(output_path, f"{clusters}_{samples}_{undersampling}")
-                create_path_if_not_exists(experiment_path)
-                cluster_numbers.append(clusters)
-                sample_numbers.append(samples)
-                print(f"Clusters: {clusters}, samples: {samples}, undersampling: {undersampling}")
-                model.clusters = clusters
-                model.samples_count = samples
-                if undersampling:
-                    model.fit_precomputed(resampled_train_descriptors, resampled_train_labels)
-                else:
-                    model.fit_precomputed(train_descriptors, train_labels)
-
-                value, value_per_class, nmrr, embeddings = model.eval_precomputed(test_descriptors, y_test)
-                paths, _ = get_paths_and_classes(test_data)
-                visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
-                
-                values.append(value)
-                print(value)
-                values_per_class.append(value_per_class)
-                result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
-                visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}")
-                visualize_embeddings(embeddings, paths, experiment_path)
+            for undersample in [True, False]:
+                run_experiment(clusters, samples, undersample)
     
     df = pd.DataFrame.from_dict({"clusters": cluster_numbers, "samples": sample_numbers, "anmrr": values, "undersampling": undersampling})
     class_names = test_data.class_names
@@ -98,25 +105,55 @@ def get_checkpoint_callback():
     )
     return checkpoint_callback
 
-if __name__ == "__main__":
+def get_early_stopping_callback():
+    early_stop_callback = EarlyStopping(
+        monitor='val_anmrr',
+        patience=5,
+        mode='min'
+    )
+    return early_stop_callback
+
+def run_all_triplet():
     models = ['resnet18', 'resnet50', 'resnet101']
     datasets = {
-        # "uc_merced": UC_MERCED_DATA_DIRECTORY,
+        "uc_merced": UC_MERCED_DATA_DIRECTORY,
         "pattern_net": PATTERN_NET_DATA_DIRECTORY,
     }
 
-    output_sizes = [50, 100, 150]
+    output_sizes = [25, 50, 100, 150]
 
-    epochs = 50
+    epochs = 250
+
+    results_path = os.path.join(RESULTS_DIRECTORY, "triplet")
 
     for dataset_name, dataset_path in datasets.items():
+        used_models = []
+        used_output_sizes = []
+        values = []
+        values_per_class = []
         for model in models:
             for output_size in output_sizes:
+                experiment_path = os.path.join(results_path, f"{model}_{output_size}")
+                create_path_if_not_exists(experiment_path)
+                used_models.append(model)
+                used_output_sizes.append(output_size)
                 checkpoint_callback = get_checkpoint_callback()
+                early_stop_callback = get_early_stopping_callback()
                 triplet_retriever = TripletRetriever(model, output_size)
                 dm = TripletDataModule(dataset_path, 224, 0.8, 100)
                 wandb_logger = WandbLogger(f'{model}_{output_size}', project=f'triplet_retrieval_{dataset_name}')
                 wandb_logger.watch(triplet_retriever, 'all', log_freq=10)
-                trainer = pl.Trainer(max_epochs=epochs, gpus=-1, logger=wandb_logger, callbacks=[checkpoint_callback])
+                trainer = pl.Trainer(max_epochs=epochs, gpus=-1, logger=wandb_logger, callbacks=[checkpoint_callback, early_stop_callback])
                 trainer.fit(triplet_retriever, dm)
+
+                paths, embeddings, classes = calculate_embeddings_torch(triplet_retriever, dm.val_dataloader)
+                anmrr_value, anmrr_per_class, nmrr = anmrr(embeddings, classes, euclidean_distances, class_mean=True, all_queries=True)
+                values.append(anmrr_value)
+                values_per_class.append(anmrr_per_class)
+                visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
+                
+                anmrr_per_class_path = os.path.join(experiment_path, f"anmrr_{model}_{output_size}.png")
+                visualize_anmrr_per_class(anmrr_per_class, dm.label_name_mapping, dataset_name, anmrr_per_class_path, f"Triplet, m={model}, o={output_size}")
+                visualize_embeddings(embeddings, paths, experiment_path)
+                
                 wandb.finish()
