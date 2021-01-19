@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import numpy as np
 from src.utils import get_paths_and_classes
 
-from src.visualisation import visualize_anmrr_per_class, visualize_best_and_worst_queries
+from src.visualisation import visualize_anmrr_per_class, visualize_best_and_worst_queries, visualize_embeddings
 
 import pandas as pd
 
@@ -50,6 +50,7 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
             values_per_class.append(value_per_class)
             result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
             visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}")
+            visualize_embeddings(embeddings, paths, experiment_path)
     
     df = pd.DataFrame.from_dict({"clusters": cluster_numbers, "samples": sample_numbers, "anmrr": values})
     class_names = test_data.class_names

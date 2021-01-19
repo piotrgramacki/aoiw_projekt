@@ -10,6 +10,11 @@ import plotly.express as px
 from skimage import io
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import euclidean_distances
+import numpy as np
+from PIL import Image
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+from sklearn.manifold import TSNE
+from umap import UMAP
 
 def random_walk(
         images: np.ndarray,
@@ -106,3 +111,27 @@ def visualize_best_and_worst_queries(paths, embeddings, nmrr, n_queries, output_
             plt.close()
     visualize_queries(n_worst_queries_indices, "worst")
     visualize_queries(n_best_queries_indices, "best")
+
+
+def visualize_embeddings(embeddings: np.ndarray, image_paths, output_path):
+    tsne_embeddings = TSNE(n_components=2).fit_transform(embeddings)
+    umap_embeddings = UMAP().fit_transform(embeddings)
+    _visualize_embeddings(tsne_embeddings, image_paths, os.path.join(output_path, f"tsne.png"))
+    _visualize_embeddings(umap_embeddings, image_paths, os.path.join(output_path, f"umap.png"))
+
+
+def _visualize_embeddings(two_dimensional_embeddings, image_paths, output_path):
+    def get_image(path):
+            img = Image.open(path)
+            a = np.asarray(img)
+            return OffsetImage(a, zoom=0.15)
+
+    fig, ax = plt.subplots(figsize=(15,15))
+    ax.scatter(two_dimensional_embeddings[:, 0], two_dimensional_embeddings[:, 1]) 
+    for image_path, (x, y) in zip(image_paths, two_dimensional_embeddings):
+        ab = AnnotationBbox(get_image(image_path), (x, y), frameon=False)
+        ax.add_artist(ab)
+    fig.savefig(output_path, dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.clf()
+    plt.cla()
+    plt.close()
