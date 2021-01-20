@@ -69,8 +69,11 @@ def anmrr(
 
     if all_queries:
         result = (*result, nmrr)
-
-    return result
+    
+    if class_mean or all_queries:
+        return result
+    else:
+        return anmrr
 
 
 if __name__ == "__main__":

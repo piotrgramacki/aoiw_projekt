@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from data.ucmerced_dataset import TripletDataset
+from tqdm import tqdm
 
 from models.bovw import BoVWRetriever
 
@@ -8,18 +9,19 @@ def calculate_embeddings_torch(model, dataloader):
     paths = []
     embeddings = []
     classes = []
+    m = model.cuda()
     with torch.no_grad():
-        for i_batch, sample_batched in enumerate(dataloader):
+        for i_batch, sample_batched in tqdm(enumerate(dataloader)):
             anchors = sample_batched['a'].cuda()
             y = sample_batched['a_y']
             classes.append(y.cpu().numpy())
             anchor_paths = sample_batched['path']
             paths.extend(anchor_paths)
-            a = model(anchors).cpu().numpy()
+            a = m(anchors).cpu().numpy()
             embeddings.append(a)
 
         embeddings = np.concatenate(embeddings)
-        classes = np.concatenate(classes)
+        classes = np.concatenate(classes)[:, None]
         paths = np.array(paths)
     return paths, embeddings, classes
 
