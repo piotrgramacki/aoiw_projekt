@@ -10,7 +10,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 class TripletDataModule(LightningDataModule):
-    def __init__(self, data_dir: str, image_size: int, train_percentage: float, batch_size: int, augment=True, normalize=True, permute=False, random_seed = 42):
+    def __init__(self, data_dir: str, image_size: int, train_percentage: float, batch_size: int, augment=True, normalize=True, permute=False, 
+    jitter_brightness = 0, jitter_contrast=0, jitter_saturation=0, jitter_hue=0, rotate=False, random_seed = 42):
         super().__init__()
         self.data_dir = data_dir
         self.train_percentage = train_percentage
@@ -24,6 +25,9 @@ class TripletDataModule(LightningDataModule):
         if augment:
             train_transforms.append(transforms.RandomHorizontalFlip())
             train_transforms.append(transforms.RandomVerticalFlip())
+            train_transforms.append(transforms.ColorJitter(brightness=jitter_brightness, contrast=jitter_contrast, saturation=jitter_saturation, hue=jitter_hue))
+            if rotate:
+                train_transforms.append(transforms.RandomRotation(45))
         
         train_transforms.append(transforms.ToTensor())
         test_transforms.append(transforms.ToTensor())

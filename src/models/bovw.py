@@ -23,7 +23,6 @@ class BoVWRetriever:
         self.clusters = clusters
         self.samples_count = samples_count
         self.random_state = random_state
-        self.sift = cv2.SIFT_create()
         self.k_means = None
     
     def fit(self, data: TripletDataset):
@@ -96,9 +95,7 @@ class BoVWRetriever:
             if labels:
                 label = item["a_y"]
 
-            cv_img = img_as_ubyte(img)
-            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2GRAY)
-            _, d = self.sift.detectAndCompute(cv_img, None)
+            d = self.get_image_descriptors(img)
             if d is not None:
                 desc.append(d)
 
@@ -109,6 +106,18 @@ class BoVWRetriever:
             return desc, matching_labels
         else:
             return desc
+    
+    def get_image_descriptors(self, image_rgb):
+        cv_img = img_as_ubyte(image_rgb)
+        cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2GRAY)
+        sift = cv2.SIFT_create()
+        _, d = sift.detectAndCompute(cv_img, None)
+        return d
+    
+    def encode_image_as_bovw(self, image):
+        image_descriptors = self.get_image_descriptors(image)
+        image_descriptors = image_descriptors[None, :]
+        return self.encode_as_bovw_precomputed(image_descriptors)
 
     def encode_as_bovw(self, data: TripletDataset) -> np.ndarray:
         descriptors = self.get_descriptors(data, labels=False)

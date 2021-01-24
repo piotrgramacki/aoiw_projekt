@@ -8,7 +8,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from measures import anmrr
 from src.models.bovw import BoVWRetriever
 from src.data.ucmerced_dataset import TripletDataModule, TripletDataset
-from src.settings import RESULTS_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY
+from src.settings import RESULTS_DIRECTORY, UC_MERCED_BLUR_DATA_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY, UC_MERCED_EQ_BLUR_DATA_DIRECTORY, UC_MERCED_EQ_DATA_DIRECTORY
 import wandb
 from src.models.triplet_retriever import TripletRetriever
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -19,10 +19,9 @@ from src.visualisation import visualize_anmrr_per_class, visualize_best_and_wors
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import pandas as pd
+from src.utils import create_path_if_not_exists
+import pickle as pkl
 
-def create_path_if_not_exists(path: str):
-    if not os.path.exists(path):
-        os.mkdir(path)
 
 def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, cluster_sizes: List[int], samples_counts: List[int], dataset_name: str, output_path: str):
     model = BoVWRetriever(100, 10000)
@@ -60,6 +59,9 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
         result_path = os.path.join(experiment_path, f"anmrr_{clusters}_{samples}.png")
         visualize_anmrr_per_class(value_per_class, train_data.label_name_mapping, dataset_name, result_path, f"BoVW, c={clusters}, s={samples}, u={undersample}")
         visualize_embeddings(embeddings, paths, experiment_path)
+        model_path = os.path.join(experiment_path, f"bovw.pkl.gz")
+        with open(model_path, "wb") as f:
+            pkl.dump(model, f)
 
     for clusters in cluster_sizes:
         for samples in samples_counts:
@@ -76,11 +78,15 @@ def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, 
 
 
 def run_all_bovw():
-    datasets = [("UC Merced", UC_MERCED_DATA_DIRECTORY, "uc_merced"), ("PatternNet", PATTERN_NET_DATA_DIRECTORY, "pattern_net")]
+    datasets = [
+        ("UC Merced", UC_MERCED_DATA_DIRECTORY, "uc_merced"), 
+        ("UC Merced Equalized", UC_MERCED_EQ_DATA_DIRECTORY, "uc_merced_eq"),
+        ("PatternNet", PATTERN_NET_DATA_DIRECTORY, "pattern_net")
+    ]
     image_size = 256
 
     output_sizes = [25, 50, 100, 150]
-    samples = [5000, 10000, 20000, 50000]
+    samples = [5000, 10000, 20000, 50000, 100_000]
     bovw_path = os.path.join(RESULTS_DIRECTORY, "bovw")
     create_path_if_not_exists(bovw_path)
 
@@ -114,59 +120,69 @@ def get_early_stopping_callback():
     return early_stop_callback
 
 def run_all_triplet():
-    # models = ['resnet18', 'resnet50', 'resnet101']
-    models = ['resnet18', 'resnet50']
+    models = ['resnet18', 'resnet50', 'resnet101']
     datasets = [
         ("uc_merced", "UC Merced", UC_MERCED_DATA_DIRECTORY),
+        ("uc_merced_eq", "UC Merced Equalized", UC_MERCED_EQ_DATA_DIRECTORY),
         ("pattern_net", "PatternNet", PATTERN_NET_DATA_DIRECTORY),
     ]
 
-    # output_sizes = [25, 50, 100, 150]
-    output_sizes = [25, 50]
+    output_sizes = [25, 50, 100]
 
-    epochs = 2
-
-    results_path = os.path.join(RESULTS_DIRECTORY, "triplet")
-    create_path_if_not_exists(results_path)
-
+    epochs = 50
+    
     for dataset_path_name, dataset_name, dataset_path in datasets:
-        output_path = os.path.join(results_path, dataset_path_name)
-        create_path_if_not_exists(output_path)
-        used_models = []
-        used_output_sizes = []
-        values = []
-        values_per_class = []
-        class_names = []
-        for model in models:
-            for output_size in output_sizes:
-                experiment_path = os.path.join(output_path, f"{model}_{output_size}")
-                create_path_if_not_exists(experiment_path)
-                used_models.append(model)
-                used_output_sizes.append(output_size)
-                checkpoint_callback = get_checkpoint_callback()
-                early_stop_callback = get_early_stopping_callback()
-                triplet_retriever = TripletRetriever(model, output_size)
-                dm = TripletDataModule(dataset_path, 224, 0.8, 100)
-                wandb_logger = WandbLogger(f'{model}_{output_size}', project=f'triplet_retrieval_{dataset_path_name}')
-                wandb_logger.watch(triplet_retriever, 'all', log_freq=10)
-                trainer = pl.Trainer(max_epochs=epochs, gpus=-1, logger=wandb_logger, callbacks=[checkpoint_callback, early_stop_callback])
-                trainer.fit(triplet_retriever, dm)
+        for augment in [True, False]:
+            results_path = os.path.join(RESULTS_DIRECTORY, "triplet")
+            if augment:
+                results_path += "_augment"
+            create_path_if_not_exists(results_path)
 
-                paths, embeddings, classes = calculate_embeddings_torch(triplet_retriever, dm.val_dataloader())
-                anmrr_value, anmrr_per_class, nmrr = anmrr(embeddings, classes, euclidean_distances, class_mean=True, all_queries=True)
-                values.append(anmrr_value)
-                values_per_class.append(anmrr_per_class)
-                class_names = dm.class_names
-                print("Creating visualisations")
-                visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
-                
-                anmrr_per_class_path = os.path.join(experiment_path, f"anmrr_{model}_{output_size}.png")
-                visualize_anmrr_per_class(anmrr_per_class, dm.label_name_mapping, dataset_name, anmrr_per_class_path, f"Triplet, m={model}, o={output_size}")
-                visualize_embeddings(embeddings, paths, experiment_path)
-                
-                wandb.finish()
+            output_path = os.path.join(results_path, dataset_path_name)
+            create_path_if_not_exists(output_path)
+            used_models = []
+            used_output_sizes = []
+            values = []
+            values_per_class = []
+            class_names = []
+            for model in models:
+                for output_size in output_sizes:
+                    experiment_path = os.path.join(output_path, f"{model}_{output_size}")
+                    create_path_if_not_exists(experiment_path)
+                    used_models.append(model)
+                    used_output_sizes.append(output_size)
+                    checkpoint_callback = get_checkpoint_callback()
+                    early_stop_callback = get_early_stopping_callback()
+                    triplet_retriever = TripletRetriever(model, output_size)
+                    if augment:
+                        dm = TripletDataModule(dataset_path, 224, 0.8, 100, jitter_brightness=0.5, jitter_contrast=0.4, jitter_saturation=0.5, rotate=True)
+                    else:
+                        dm = TripletDataModule(dataset_path, 224, 0.8, 100)
 
-        df = pd.DataFrame.from_dict({"model": used_models, "output_size": used_output_sizes, "anmrr": values})
-        values_per_class_without_labels = [list(list(zip(*single_experiment))[1]) for single_experiment in values_per_class]
-        full_df = pd.concat([df, pd.DataFrame(np.array(values_per_class_without_labels), columns=class_names)], axis=1)
-        full_df.to_pickle(os.path.join(output_path, f"results_{dataset_path_name}.pkl.gz"))
+                    experiment_name = f'{model}_{output_size}'
+                    if augment:
+                        experiment_name += "_a"
+
+                    wandb_logger = WandbLogger(experiment_name, project=f'triplet_retrieval_{dataset_path_name}')
+                    wandb_logger.watch(triplet_retriever, 'all', log_freq=10)
+                    trainer = pl.Trainer(max_epochs=epochs, gpus=-1, logger=wandb_logger, callbacks=[checkpoint_callback, early_stop_callback])
+                    trainer.fit(triplet_retriever, dm)
+
+                    paths, embeddings, classes = calculate_embeddings_torch(triplet_retriever, dm.val_dataloader())
+                    anmrr_value, anmrr_per_class, nmrr = anmrr(embeddings, classes, euclidean_distances, class_mean=True, all_queries=True)
+                    values.append(anmrr_value)
+                    values_per_class.append(anmrr_per_class)
+                    class_names = dm.class_names
+                    print("Creating visualisations")
+                    visualize_best_and_worst_queries(paths, embeddings, nmrr, 3, experiment_path, 16)
+                    
+                    anmrr_per_class_path = os.path.join(experiment_path, f"anmrr_{model}_{output_size}.png")
+                    visualize_anmrr_per_class(anmrr_per_class, dm.label_name_mapping, dataset_name, anmrr_per_class_path, f"Triplet, m={model}, o={output_size}")
+                    visualize_embeddings(embeddings, paths, experiment_path)
+                    
+                    wandb.finish()
+
+            df = pd.DataFrame.from_dict({"model": used_models, "output_size": used_output_sizes, "anmrr": values})
+            values_per_class_without_labels = [list(list(zip(*single_experiment))[1]) for single_experiment in values_per_class]
+            full_df = pd.concat([df, pd.DataFrame(np.array(values_per_class_without_labels), columns=class_names)], axis=1)
+            full_df.to_pickle(os.path.join(output_path, f"results_{dataset_path_name}.pkl.gz"))

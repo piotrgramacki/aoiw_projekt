@@ -1,9 +1,10 @@
 import torch
 import numpy as np
-from data.ucmerced_dataset import TripletDataset
+from src.data.ucmerced_dataset import TripletDataset
 from tqdm import tqdm
+import os
 
-from models.bovw import BoVWRetriever
+from src.models.bovw import BoVWRetriever
 
 def calculate_embeddings_torch(model, dataloader):
     paths = []
@@ -36,3 +37,8 @@ def get_paths_and_classes(dataset: TripletDataset):
     classes = np.array(classes)
     paths = np.array(paths)
     return paths, classes
+
+
+def create_path_if_not_exists(path: str):
+    if not os.path.exists(path):
+        os.mkdir(path)
