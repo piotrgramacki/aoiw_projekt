@@ -3,10 +3,11 @@
 __pycache__
 /.env
 .vscode
-/data
 /notebooks/runs
 /runs
 wandb
 /.python-version
 .ipynb_checkpoints
 results
+/data/raw/*
+!/data/**/.gitkeep

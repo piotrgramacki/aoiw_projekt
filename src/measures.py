@@ -9,7 +9,8 @@ def anmrr(
     pairwise_distance: Callable[[np.ndarray], np.ndarray],
     K: float = 2.0,
     class_mean: bool = False,
-) -> Union[float, Tuple[float, List[Tuple[int, float]]]]:
+    all_queries: bool = False
+) -> Union[float, Tuple[float, List[Tuple[int, float]]], Tuple[float, List[Tuple[int, float]], np.ndarray]]:
     """Calculates anmrr measure for dataset given measure
 
     Parameters
@@ -60,11 +61,19 @@ def anmrr(
 
     anmrr = np.mean(nmrr)
 
+    result = (anmrr, )
+
     if class_mean:
         class_anmrr = [(c, np.mean(nmrr[y == c])) for c in unique_classes]
-        return anmrr, class_anmrr
+        result = (*result, class_anmrr)
 
-    return anmrr
+    if all_queries:
+        result = (*result, nmrr)
+    
+    if class_mean or all_queries:
+        return result
+    else:
+        return anmrr
 
 
 if __name__ == "__main__":
