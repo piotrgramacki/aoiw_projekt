@@ -34,8 +34,8 @@ def create_histograms():
 
 if __name__ == '__main__':
     matplotlib.use('Agg')
-    # preprocess_datasets()
-    # create_histograms()
-    # run_all_bovw()
-    # run_all_triplet()
+    preprocess_datasets()
+    create_histograms()
+    run_all_bovw()
+    run_all_triplet()
     run_orto_training()
