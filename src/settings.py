@@ -11,6 +11,7 @@ UC_MERCED_BLUR_DATA_DIRECTORY = os.path.join(RAW_DATA_DIRECTORY, "uc_merced_blur
 UC_MERCED_EQ_DATA_DIRECTORY = os.path.join(RAW_DATA_DIRECTORY, "uc_merced_eq")
 UC_MERCED_EQ_BLUR_DATA_DIRECTORY = os.path.join(RAW_DATA_DIRECTORY, "uc_merced_eq_blur")
 PATTERN_NET_DATA_DIRECTORY = os.path.join(RAW_DATA_DIRECTORY, "pattern_net")
+ORTO_DATA_DIRECTORY = os.path.join(RAW_DATA_DIRECTORY, "orto")
 RANDOM_WALKS_DIRECTORY = "."
 
 RESULTS_DIRECTORY = os.path.join(PROJECT_DIRECTORY, "results")

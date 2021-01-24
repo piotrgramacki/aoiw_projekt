@@ -1,7 +1,7 @@
 from typing import List
 from sklearn import datasets
 from data.ucmerced_dataset import TripletDataModule, TripletDataset
-from experiments import run_all_bovw, run_all_triplet, create_path_if_not_exists
+from experiments import run_all_bovw, run_all_triplet, create_path_if_not_exists, run_orto_training
 from models.bovw import BoVWRetriever
 from src.eda.eda import get_color_intensity_counts_per_class, generate_color_histograms
 from src.settings import RESULTS_DIRECTORY, EDA_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY, UC_MERCED_EQ_DATA_DIRECTORY
@@ -34,7 +34,8 @@ def create_histograms():
 
 if __name__ == '__main__':
     matplotlib.use('Agg')
-    preprocess_datasets()
-    create_histograms()
-    run_all_bovw()
-    run_all_triplet()
+    # preprocess_datasets()
+    # create_histograms()
+    # run_all_bovw()
+    # run_all_triplet()
+    run_orto_training()

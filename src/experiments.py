@@ -5,10 +5,11 @@ from venv import create
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 from sklearn.metrics.pairwise import euclidean_distances
+from src.data.orto_dataset import OrtoDataset
 from measures import anmrr
 from src.models.bovw import BoVWRetriever
 from src.data.ucmerced_dataset import TripletDataModule, TripletDataset
-from src.settings import RESULTS_DIRECTORY, UC_MERCED_BLUR_DATA_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY, UC_MERCED_EQ_BLUR_DATA_DIRECTORY, UC_MERCED_EQ_DATA_DIRECTORY
+from src.settings import ORTO_DATA_DIRECTORY, RESULTS_DIRECTORY, UC_MERCED_BLUR_DATA_DIRECTORY, UC_MERCED_DATA_DIRECTORY, PATTERN_NET_DATA_DIRECTORY, UC_MERCED_EQ_BLUR_DATA_DIRECTORY, UC_MERCED_EQ_DATA_DIRECTORY
 import wandb
 from src.models.triplet_retriever import TripletRetriever
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -22,6 +23,12 @@ import pandas as pd
 from src.utils import create_path_if_not_exists
 import pickle as pkl
 
+from src.data.orto_dataset import OrtoDataset
+from torch.utils.tensorboard import SummaryWriter
+
+from torch.utils.data import DataLoader
+import torch
+from tqdm import trange
 
 def run_bovw_experiments(train_data: TripletDataset, test_data: TripletDataset, cluster_sizes: List[int], samples_counts: List[int], dataset_name: str, output_path: str):
     model = BoVWRetriever(100, 10000)
@@ -186,3 +193,64 @@ def run_all_triplet():
             values_per_class_without_labels = [list(list(zip(*single_experiment))[1]) for single_experiment in values_per_class]
             full_df = pd.concat([df, pd.DataFrame(np.array(values_per_class_without_labels), columns=class_names)], axis=1)
             full_df.to_pickle(os.path.join(output_path, f"results_{dataset_path_name}.pkl.gz"))
+
+
+def run_orto_training():
+    experiment_path = os.path.join(RESULTS_DIRECTORY, "orto")
+    create_path_if_not_exists(experiment_path)
+
+    image_size = 224
+    dataset = OrtoDataset(ORTO_DATA_DIRECTORY, image_size, train=True)
+    train_dataloader = DataLoader(dataset, batch_size=150, shuffle=True, num_workers=10, prefetch_factor=4)
+
+
+    def set_training_model_layers(model, training: bool, up_to_index: int):
+        i = 0
+        for child in model.children():
+            if i > up_to_index:
+                break
+            for param in child.parameters():
+                param.requires_grad = training
+            i+=1
+    
+    model = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
+    model.fc = torch.nn.Linear(512, 100, bias=True)
+    set_training_model_layers(model, False, 8)
+    model = model.cuda()
+    
+    iters = 600
+    writer = SummaryWriter(log_dir=experiment_path)
+    criterion = torch.nn.TripletMarginLoss()
+    optim = torch.optim.Adam(model.parameters(), weight_decay=1e-5)
+
+    t = trange(iters)
+    for epoch in t:
+        loss_sum = 0.0
+        for i_batch, sample_batched in enumerate(train_dataloader):
+            optim.zero_grad()
+            
+            anchors = sample_batched['a'].cuda()
+            positives = sample_batched['p'].cuda()
+            negatives = sample_batched['n'].cuda()
+            a = model(anchors)
+            p = model(positives)
+            n = model(negatives)
+            loss = criterion(a, p, n)
+            loss.backward()
+            loss_sum += float(loss)
+            optim.step()
+            t.set_description(f"Batch: {i_batch}")
+        del a
+        del p
+        del n
+        del loss
+
+        train_loss = loss_sum / len(train_dataloader)
+        writer.add_scalar('Loss/train', train_loss, epoch)
+        t.set_description(f"Epoch: {epoch}, Train loss: {train_loss}")
+
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optim.state_dict(),
+        }, os.path.join(experiment_path, f"{epoch}_checkpoint.pt"))
