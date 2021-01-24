@@ -139,7 +139,7 @@ def run_all_triplet():
     epochs = 50
     
     for dataset_path_name, dataset_name, dataset_path in datasets:
-        for augment in [True, False]:
+        for augment in [False, True]:
             results_path = os.path.join(RESULTS_DIRECTORY, "triplet")
             if augment:
                 results_path += "_augment"
