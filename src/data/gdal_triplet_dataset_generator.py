@@ -1,4 +1,6 @@
 import multiprocessing
+
+import click
 import rasterio
 from rasterio.windows import from_bounds, Window, get_data_window, transform
 import numpy as np
@@ -164,14 +166,19 @@ class GdalTripletDatasetGenerator:
         return kwargs
 
     def _is_image_valid(self, image: np.ndarray) -> bool:
-        percent_zeros = np.sum(image == 0) / np.size(image)
-        return percent_zeros < 0.001
+        return True # this problem has been solved differently
+        # percent_zeros = np.sum(image == 0) / np.size(image)
+        # return percent_zeros < 0.001
 
+@click.command('generate')
+@click.option('-s', '--source-raster', 'source_raster', type=click.Path(dir_okay=False), required=True)
+@click.option('-a', '--anchors-path', 'anchors_path', type=click.Path(file_okay=False), required=True)
+@click.option('-o', '--output-path', 'output_path', type=click.Path(file_okay=False, writable=True, exists=True), required=True)
+@click.option('-n', '--num-positive', 'num_positive', type=int, required=False, default=20)
+def generate_triplet_dataset(source_raster: str, anchors_path: str, output_path: str, num_positive: int):
+    np.random.seed(42)
+    generator = GdalTripletDatasetGenerator(source_raster)
+    generator.generate_dataset(anchors_path, output_path, num_positive)
 
 if __name__ == "__main__":
-
-    source_path = "C:\\Users\\Szymon\\projects\\aoiw\\datasets\\orto2020.vrt"
-    anchors_path = "C:\\Users\\Szymon\\projects\\aoiw\\datasets\\orto2020split"
-    destination = "C:\\Users\\Szymon\\projects\\aoiw\\datasets\\orto2020pos"
-    generator = GdalTripletDatasetGenerator(source_path)
-    generator.generate_dataset(anchors_path, destination, 20)
+    generate_triplet_dataset()
