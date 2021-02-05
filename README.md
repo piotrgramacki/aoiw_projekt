@@ -5,11 +5,11 @@
 
 ## Zbiór z ortofotomapy
 Ze względu na rozmiar uzyskanego zbioru (~400GB), oraz półautomatyczny proces jego konstruowania, nie jesteśmy go niestety w stanie udostępnić w całości. Poniżej został opisany proces generowania zbioru z plików dostępnych do pobrania z [rządowego geoportalu](https://mapy.geoportal.gov.pl/imap/Imgp_2.html).
-Pobrane przez nas pliki potrzebne do wygenerowania zbioru zajmują około 7GB i zostały udostępnione [tutaj](https://drive.google.com/file/d/1YvwibxuxpdgG1VqF9RgTsavhUJF08M2g/view?usp=sharing).
+Pobrane przez nas pliki potrzebne do wygenerowania zbioru zajmują około 7GB i zostały udostępnione [tutaj](https://drive.google.com/file/d/191aIQuW7D9pZjkNh1rjaPc17mtnZrSx0/view?usp=sharing).
 
 ### Generowanie
 Proces generowania zbioru z ortofotomapy jest półautomatyczny i wymaga wykorzystania zewnętrznego narzędzia geoinformacyjnego (GIS). Tutaj zostało to opisane na przykładzie darmowego narzędzia QGIS.
-1. Pobrać [pliki](https://drive.google.com/file/d/1YvwibxuxpdgG1VqF9RgTsavhUJF08M2g/view?usp=sharing) ze zdjęciami z ortofotomapy.
+1. Pobrać [pliki](https://drive.google.com/file/d/191aIQuW7D9pZjkNh1rjaPc17mtnZrSx0/view?usp=sharing) ze zdjęciami z ortofotomapy.
 2. Wczytać pliki z rozpakowanego folderu do programu QGIS. W tym celu należy kliknąć "Layer -> Add Layer -> Add Raster Layer", a następnie wybrać wszystkie pliki .tif z rozpakowanego folderu.
 ![Wczytywanie plików do programu QGIS](orto_instructions/load_files.jpg)
 3. Następnie należy utworzyć ze wszystkich wczytanych plików wirtualny raster. W tym celu należy wybrać opcję "Raster -> Miscellaneous -> Build Virtual Raster...". W otwartym oknie należy wybrać wszystkie pliki z projektu jako "Input layers". Resztę opcji należy ustawić tak jak na obrazku poniżej. Szczególnie ważne jest aby odznaczyć "Place each input file into a separate band". Na koniec należy wybrać "Run".
